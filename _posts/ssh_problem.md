@@ -1,0 +1,301 @@
+---
+title: 利用ssh连接虚拟机的踩坑学习日记
+date: YYYY-MM-DD HH:MM:SS +/-TTTT
+categories: [tools]
+tags: [linux, cli]
+toc: true
+description: 本文将在主机环境为windows中连接virtualbox管理的linux虚拟机
+---
+
+
+
+# 利用ssh连接虚拟机的踩坑学习日记
+
+## 什么是ssh?
+
+SSH 允许用户安全地登录到远程机器。与传统的 Telnet 或 FTP 等协议相比，SSH 加密了所有传输的数据，从而保护用户的密码和其他敏感信息不被窃取，SSH 允许用户在远程计算机上执行命令，这让系统管理员和开发人员可以远程管理服务器和应用程序。
+
+本文将在主机环境为windows中连接virtualbox管理的linux虚拟机，版本为ubuntu22.04LTS。
+
+一般情况下，大多数 Linux 发行版默认都安装了 SSH 客户端，可以使用命令查看环境中是否运行了ssh服务。
+
+```bash
+systemctl is-active ssh
+# 如果没有运行，使用 systemctl start ssh 启动
+```
+
+如果主机中没有装上ssh服务，可以通过 `apt install`命令安装。
+
+```bash
+sudo apt update
+sudo apt install openssh-client
+# 如果你想让其他人通过 SSH 访问你的 Linux 机器，需要安装 SSH 服务器
+sudo apt install openssh-server
+```
+
+windows环境中已经内置了ssh。
+
+## ssh的使用
+
+利用ssh连接最简单的方式是通过口令连接。
+
+```bash
+ssh yourusername@yourhostname
+```
+
+例如，我从windows中连接虚拟机。
+
+启动虚拟机后，查看虚拟机ip地址，可以使用 `ip a`命令查看。
+
+![image-20240912150914119](https://yeijon-note.oss-cn-beijing.aliyuncs.com/img/202409121509249.png)
+
+在连接的过程中出现timeout连接失败，那么说明在网络请求的过程中出现了插曲，需要一个个去排查，最常见的原因有 想要连接的服务器没有启动ssh服务；或者是防火墙阻止了。
+
+在此之前，我的virtualbox中的虚拟机是通过网络地址转换器NAT模式连接的，如果使用手机热点连接，那么网络是公有的，我尝试更改防火墙设置，可以这并不起作用。
+
+![查看防火墙](https://yeijon-note.oss-cn-beijing.aliyuncs.com/img/202409101353224.png)
+
+转换了桥接网络连接，可以连接了。但是桥接模式下虚拟机网络ip会被随机分配，如果每一次连接都需要重新查询，拿太麻烦了。
+
+## 在桥接模式下，设置为静态IP
+
+### 什么是桥接模式？
+
+![原理图](https://s1.51cto.com/wyfs02/M02/8E/12/wKioL1i1CKzDDcCKAAFNypk6tUM774.jpg)
+
+由上图可以看到，桥接模式下，虚拟机和主机在同一个网段中。
+
+桥接模式的特点：
+
+1. **直接连接** ：虚拟机直接连接到物理网络，能够与网络中所有设备进行通信。
+2. **获取IP地址** ：虚拟机可以通过DHCP或静态配置获取与主机相同子网的IP地址。
+3. **网络隔离性** ：虚拟机与主机的网络流量是相互隔离的，但可以相互访问
+
+与其他模式的比较：
+
+1. **NAT模式（网络地址转换）** ：
+   
+    - 在NAT模式下，虚拟机通过主机的网络连接上网，虚拟机的流量会被主机转发，外部网络只看到主机的IP地址。
+    - 虚拟机无法被外部网络直接访问，只能通过主机进行通信。
+2. **仅主机模式（Host-Only）** ：
+   
+    - 在仅主机模式下，虚拟机只能与主机通信，无法访问外部网络。
+    - 适用于需要在虚拟机与主机之间进行测试或调试的场景。
+
+---
+
+
+
+在 Ubuntu 22.04 中，网络配置主要通过 `Netplan` 进行管理，而不是传统的 `/etc/network/interfaces` 文件。以下是如何找到和编辑网络配置文件的步骤：
+
+1. **查找 Netplan 配置文件**
+
+Netplan 的配置文件通常位于 `/etc/netplan/` 目录下。你可以使用以下命令来查看该目录中的文件：
+
+```bash
+ls /etc/netplan/
+```
+
+你通常会看到一个或多个以 `.yaml` 结尾的文件
+
+2. **编辑 Netplan 配置文件**
+
+选择你要编辑的配置文件（假设文件名是 `01-netcfg.yaml`），使用文本编辑器（如 `nano` 或 `vim`）进行编辑：
+
+```bash
+sudo vim /etc/netplan/xxx.yaml
+```
+
+3. **设置静态 IP 地址**
+
+在配置文件中，你可以设置静态 IP 地址。以下是一个示例配置：
+
+```yaml
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    eth0:  # 替换为你的网络接口名称
+      dhcp4: no
+      addresses:
+        - 192.168.1.100/24  # 静态 IP 地址
+      gateway4: 192.168.1.1  # 默认网关
+      nameservers:
+        addresses:
+          - 8.8.8.8  # DNS 服务器
+          - 8.8.4.4
+```
+
+确保替换 `eth0` 为你的实际网络接口名称。你可以使用以下命令查看网络接口名称：
+
+```bash
+ip a
+```
+
+保存并退出编辑器后，运行以下命令以应用更改：
+
+```bash
+sudo netplan apply
+```
+
+可以使用以下命令检查 IP 地址是否设置成功：
+
+```bash
+ip a 
+```
+
+
+
+考虑到我尝试用vscode来进行编辑，那么配置一下ssh_config文件来解决，让连接更加方便。
+
+找到windows中ssh对应的文件，通常在` C:\{USERPROFILE}\.ssh\config`中
+
+![image-20240912152341655](https://yeijon-note.oss-cn-beijing.aliyuncs.com/img/202409121523703.png)
+
+- **Host**: 指定主机的别名，可以是任意字符串。
+- **HostName**: 远程主机的实际地址（IP 地址或域名）。
+- **User**: 登录远程主机时使用的用户名。
+- **Port**: 连接的端口，SSH 默认使用 22。
+- **IdentityFile**: 指定用于身份验证的私钥文件路径。
+
+这里插播一则ssh连接方式，也可以通过配置密钥来免去登录的口令连接。
+
+在配置密钥的过程中
+
+ ```bash
+ ssh-keygen -t rsa -b 2048
+ ```
+
+按照提示操作，生成的公钥通常位于 `~/.ssh/id_rsa.pub`，私钥位于 `~/.ssh/id_rsa`。
+
+注意：生成密钥的过程中你可以选择密钥验证密码，但这不是必须的。
+
+直接通过windows似乎很难通过复制粘贴将生成的密钥传递过去，可以通过脚本实现
+
+```bash
+# powershell:
+# ssh-copy-id 
+type $env:USERPROFILE\.ssh\id_rsa.pub | ssh -v username@{IP/FIUD} "cat >> ~/.ssh/authorized_keys"
+```
+
+
+
+现在通过vscode来进行连接，测试成功！
+
+![image-20240912153425148](https://yeijon-note.oss-cn-beijing.aliyuncs.com/img/202409121534214.png)
+
+
+
+
+
+## 痛补ssh的知识
+
+![https://download.huawei.com/mdl/image/download?uuid=0d8cb52df1644d66b4ece2d15764c4b8](https://download.huawei.com/mdl/image/download?uuid=0d8cb52df1644d66b4ece2d15764c4b8)
+
+通过`ssh -v -p 8086 username@ipAddress`来查看调试信息
+
+```bash
+OpenSSH_for_Windows_8.6p1, LibreSSL 3.4.3
+debug1: Reading configuration data C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/config
+debug1: Authenticator provider $SSH_SK_PROVIDER did not resolve; disabling
+debug1: Connecting to 192.168.168.107 [192.168.168.107] port 22.
+debug1: Connection established.
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_rsa type 0
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_rsa-cert type -1
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_dsa type -1
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_dsa-cert type -1
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ecdsa type -1
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ecdsa-cert type -1
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ecdsa_sk type -1
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ecdsa_sk-cert type -1
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ed25519 type -1
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ed25519-cert type -1
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ed25519_sk type -1
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ed25519_sk-cert type -1
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_xmss type -1
+debug1: identity file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_xmss-cert type -1
+debug1: Local version string SSH-2.0-OpenSSH_for_Windows_8.6
+debug1: Remote protocol version 2.0, remote software version OpenSSH_8.9p1 Ubuntu-3ubuntu0.6
+debug1: compat_banner: match: OpenSSH_8.9p1 Ubuntu-3ubuntu0.6 pat OpenSSH* compat 0x04000000
+debug1: Authenticating to 192.168.168.107:22 as 'yeijon'
+debug1: load_hostkeys: fopen C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/known_hosts2: No such file or directory
+debug1: load_hostkeys: fopen __PROGRAMDATA__\\ssh/ssh_known_hosts: No such file or directory
+debug1: load_hostkeys: fopen __PROGRAMDATA__\\ssh/ssh_known_hosts2: No such file or directory
+debug1: SSH2_MSG_KEXINIT sent
+debug1: SSH2_MSG_KEXINIT received
+debug1: kex: algorithm: curve25519-sha256
+debug1: kex: host key algorithm: ssh-ed25519
+debug1: kex: server->client cipher: chacha20-poly1305@openssh.com MAC: <implicit> compression: none
+debug1: kex: client->server cipher: chacha20-poly1305@openssh.com MAC: <implicit> compression: none
+debug1: expecting SSH2_MSG_KEX_ECDH_REPLY
+debug1: SSH2_MSG_KEX_ECDH_REPLY received
+debug1: Server host key: ssh-ed25519 SHA256:nGRAC6Ez3l1R4T9/kVB3aBolkN3w3in/1DiojYvcFWY
+debug1: load_hostkeys: fopen C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/known_hosts2: No such file or directory
+debug1: load_hostkeys: fopen __PROGRAMDATA__\\ssh/ssh_known_hosts: No such file or directory
+debug1: load_hostkeys: fopen __PROGRAMDATA__\\ssh/ssh_known_hosts2: No such file or directory
+debug1: hostkeys_find_by_key_cb: found matching key in C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/known_hosts:7
+debug1: hostkeys_find_by_key_hostfile: hostkeys file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/known_hosts2 does not exist
+debug1: hostkeys_find_by_key_hostfile: hostkeys file __PROGRAMDATA__\\ssh/ssh_known_hosts does not exist
+debug1: hostkeys_find_by_key_hostfile: hostkeys file __PROGRAMDATA__\\ssh/ssh_known_hosts2 does not exist
+The authenticity of host '192.168.168.107 (192.168.168.107)' can't be established.
+ED25519 key fingerprint is SHA256:nGRAC6Ez3l1R4T9/kVB3aBolkN3w3in/1DiojYvcFWY.
+This host key is known by the following other names/addresses:
+    C:\Users\liuliu勋娅/.ssh/known_hosts:7: [localhost]:8082
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added '192.168.168.107' (ED25519) to the list of known hosts.
+debug1: rekey out after 134217728 blocks
+debug1: SSH2_MSG_NEWKEYS sent
+debug1: expecting SSH2_MSG_NEWKEYS
+debug1: SSH2_MSG_NEWKEYS received
+debug1: rekey in after 134217728 blocks
+debug1: pubkey_prepare: ssh_get_authentication_socket: No such file or directory
+debug1: Will attempt key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_rsa RSA SHA256:+SyQTEnLc/cpUCgIP3PRd+sXyr2KWzi3quNh9av10kk
+debug1: Will attempt key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_dsa
+debug1: Will attempt key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ecdsa
+debug1: Will attempt key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ecdsa_sk
+debug1: Will attempt key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ed25519
+debug1: Will attempt key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ed25519_sk
+debug1: Will attempt key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_xmss
+debug1: SSH2_MSG_EXT_INFO received
+debug1: kex_input_ext_info: server-sig-algs=<ssh-ed25519,sk-ssh-ed25519@openssh.com,ssh-rsa,rsa-sha2-256,rsa-sha2-512,ssh-dss,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,sk-ecdsa-sha2-nistp256@openssh.com,webauthn-sk-ecdsa-sha2-nistp256@openssh.com>
+debug1: kex_input_ext_info: publickey-hostbound@openssh.com (unrecognised)
+debug1: SSH2_MSG_SERVICE_ACCEPT received
+debug1: Authentications that can continue: publickey,password
+debug1: Next authentication method: publickey
+debug1: Offering public key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_rsa RSA SHA256:+SyQTEnLc/cpUCgIP3PRd+sXyr2KWzi3quNh9av10kk
+debug1: Authentications that can continue: publickey,password
+debug1: Trying private key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_dsa
+debug1: Trying private key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ecdsa
+debug1: Trying private key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ecdsa_sk
+debug1: Trying private key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ed25519
+debug1: Trying private key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_ed25519_sk
+debug1: Trying private key: C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/id_xmss
+debug1: Next authentication method: password
+yeijon@192.168.168.107's password:
+debug1: Authentication succeeded (password).
+Authenticated to 192.168.168.107 ([192.168.168.107]:22).
+debug1: channel 0: new [client-session]
+debug1: Requesting no-more-sessions@openssh.com
+debug1: Entering interactive session.
+debug1: pledge: filesystem full
+debug1: ENABLE_VIRTUAL_TERMINAL_INPUT is supported. Reading the VTSequence from console
+debug1: ENABLE_VIRTUAL_TERMINAL_PROCESSING is supported. Console supports the ansi parsing
+debug1: client_input_global_request: rtype hostkeys-00@openssh.com want_reply 0
+debug1: client_input_hostkeys: searching C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/known_hosts for 192.168.168.107 / (none)
+debug1: client_input_hostkeys: searching C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/known_hosts2 for 192.168.168.107 / (none)
+debug1: client_input_hostkeys: hostkeys file C:\\Users\\liuliu\345\213\213\345\250\205/.ssh/known_hosts2 does not exist
+debug1: client_input_hostkeys: host key found matching a different name/address, skipping UserKnownHostsFile update
+Welcome to Ubuntu 22.04.4 LTS (GNU/Linux 6.5.0-27-generic x86_64)
+```
+
+
+
+参考：
+
+[SSH的原理解析](https://info.support.huawei.com/info-finder/encyclopedia/zh/SSH.html)
+
+[Windows 10 OpenSSH Equivalent of ssh-copy-id](https://chrisjhart.com/Windows-10-ssh-copy-id/)
+
+[ssh-tutorial](https://zah.uni-heidelberg.de/it-guide/ssh-tutorial-linux)
+
+[SSH简介及两种远程登录的方法](https://blog.csdn.net/li528405176/article/details/82810342)
