@@ -75,4 +75,5 @@ function prompt {
 
 参考：
 [ANSI Color Codes](https://talyian.github.io/ansicolors/)
+
 [How to Prompt for Input in PowerShell?](https://www.sharepointdiary.com/2021/10/prompt-for-input-in-powershell.html)
