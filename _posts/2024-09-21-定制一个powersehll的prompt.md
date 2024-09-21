@@ -69,11 +69,13 @@ function prompt {
 ## 提供更多的颜色
 在提示符中显示 Git 分支和状态信息。使用 `e[38;5;197m` 和 `e[38;5;240m` 表示文本颜色，实现 Git 分支和状态在提示符中的颜色区分。
 
+
 > 其他Shell提示符内容
 > 对于 bash 或 fish 等类型的 shell，有不同的命令和选项可以直接或者通过第三方插件进行提示符的个性化
 {: .prompt-tip }
 
 参考：
+
 [ANSI Color Codes](https://talyian.github.io/ansicolors/)
 
 [How to Prompt for Input in PowerShell?](https://www.sharepointdiary.com/2021/10/prompt-for-input-in-powershell.html)
