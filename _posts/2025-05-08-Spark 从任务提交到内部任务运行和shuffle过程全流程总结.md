@@ -7,6 +7,7 @@ description: 对spark内部细节的整理
 ---
 
 ## spark提交任务
+
 spark用client模式（为例子）在yarn的调度下提交了任务。
 ![](https://yeijon-note.oss-cn-beijing.aliyuncs.com/img/202505081130216.png)
 
@@ -38,7 +39,7 @@ executor运行Task过程，会给AM随时汇报状态和结果。让AM随时掌�
 如果executor失败，AM会检测到然后重新向RM分配资源换一个。
 
 4. 回收资源
-当spark所有的任务运行完成后，AM向RM申请注销；然后RM会指示NM收回资源，后面Yarn会回收所有的资源(AM、containers..)
+   当spark所有的任务运行完成后，AM向RM申请注销；然后RM会指示NM收回资源，后面Yarn会回收所有的资源(AM、containers..)
 
 ## Spark任务的执行细节
 
@@ -121,10 +122,3 @@ shuffleMap Tasks中前面的过程都数据都转换完了（窄依赖），进�
 ![](https://yeijon-note.oss-cn-beijing.aliyuncs.com/img/202505081144751.png)
 
 待进一步完善shuffle的细节
-
-
-
-
-
-
-
