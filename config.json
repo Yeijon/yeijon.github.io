@@ -3,5 +3,6 @@
     "subTitle":"欢迎来到我的博客！",
     "avatarUrl":"https://github.com/Yeijon.png",
     "GMEEK_VERSION":"last",
-    "allHead":"<link rel=\"stylesheet\" href=\"/custom.css\">"
+    "allHead":"<link rel=\"stylesheet\" href=\"/custom.css\">",
+    "script":"<script src='https://blog.meekdai.com/Gmeek/plugins/GmeekTOC.js'></script><script src='https://blog.meekdai.com/Gmeek/plugins/lightbox.js'></script>"
 }
