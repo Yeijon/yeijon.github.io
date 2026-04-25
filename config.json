@@ -2,5 +2,6 @@
     "title":"Yeijon",
     "subTitle":"欢迎来到我的博客！",
     "avatarUrl":"https://github.com/Yeijon.png",
-    "GMEEK_VERSION":"last"
+    "GMEEK_VERSION":"last",
+    "allHead":"<link rel=\"stylesheet\" href=\"/custom.css\">"
 }
